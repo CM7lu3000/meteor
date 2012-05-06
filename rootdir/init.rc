@@ -1,0 +1,1623 @@
+on early-init
+    start ueventd
+
+on init
+
+sysclktz 0
+
+loglevel 7
+
+# Set mpu freq to 1GHz at boot time.
+    write /sys/power/vdd1_opp 4
+
+# setup the global environment
+    export PATH /sbin:/vendor/bin:/system/sbin:/system/bin:/system/xbin
+    export LD_LIBRARY_PATH /vendor/lib:/system/lib
+    export ANDROID_BOOTLOGO 1
+    export ANDROID_ROOT /system
+    export ANDROID_ASSETS /system/app
+    export ANDROID_DATA /data
+    export EXTERNAL_STORAGE /mnt/sdcard
+    export ASEC_MOUNTPOINT /mnt/asec
+    export LOOP_MOUNTPOINT /mnt/obb
+	export BOOTCLASSPATH /system/framework/core.jar:/system/framework/bouncycastle.jar:/system/framework/ext.jar:/system/framework/framework.jar:/system/framework/android.policy.jar:/system/framework/services.jar:/system/framework/core-junit.jar:/system/framework/lguplus.jar //for user mode. by nusnoh@ubiquix.com 2011.07.12
+	#export BOOTCLASSPATH /system/framework/core.jar:/system/framework/bouncycastle.jar:/system/framework/ext.jar:/system/framework/framework.jar:/system/framework/android.policy.jar:/system/framework/services.jar:/system/framework/core-junit.jar
+    export DSP_PATH /system/lib/dsp
+    export DEFAULT_BASEIMAGE /system/lib/dsp/baseimage.dof
+    export QOSDYN_FILE /system/lib/dsp/qosdyn_3430.dll64P
+    export PM_TBLFILE /system/etc/policytable.tbl
+    export BT_FW_PATH /system/lib/firmware    
+    export TMPDIR /data/local/tmp
+
+    start bootlogo
+
+# Backward compatibility
+    symlink /system/etc /etc
+    symlink /system/lib /lib
+    symlink /sys/kernel/debug /d
+
+# Right now vendor lives on the same filesystem as system,
+# but someday that may change.
+    symlink /system/vendor /vendor
+
+# create mountpoints
+    mkdir /mnt 0775 root system
+    mkdir /mnt/sdcard 0000 system system
+
+# Create cgroup mount point for cpu accounting
+    mkdir /acct
+    mount cgroup none /acct cpuacct
+    mkdir /acct/uid
+
+# Backwards Compat - XXX: Going away in G*
+    symlink /mnt/sdcard /sdcard
+    mkdir /system
+    mkdir /data 0771 system system
+    mkdir /cache 0770 system cache
+    mkdir /config 0500 root root
+
+#--[[ LGE_UBIQUIX_MODIFIED_START : scchoi@ubiquix.com [2011-08-16] - change tmp directory permission for CTS.
+# LGE_CHANGE_S, bae.cheolhwan@lge.com, 2011-05-16. Modify a UTS issue (permission issue).
+#--[[ LGE_UBIQUIX_MODIFIED_START : nullcha@mnbt.co.kr - change tmp directory permission for btipsd
+    # mkdir /tmp 0777
+    mkdir /tmp 01771 root system
+#--]] LGE_UBIQUIX_MODIFIED_END : nullcha@mnbt.co.kr - change tmp directory permission for btipsd
+# LGE_CHANGE_E, bae.cheolhwan@lge.com, 2011-05-16. Modify a UTS issue (permission issue).
+#--]] LGE_UBIQUIX_MODIFIED_END : scchoi@ubiquix.com [2011-08-16] - change tmp directory permission for CTS.
+
+#--[[ LGE_UBIQUIX_MODIFIED_START : scchoi@ubiquix.com [2011-08-16] - change sqlite_stmt_journals directry permission for CTS
+#--[[ LGE_UBIQUIX_MODIFIED_START : nullcha@mnbt.co.kr - change sqlite_stmt_journals directry permission for Phone BT
+    # mkdir /sqlite_stmt_journals 0777 root camera # org : 01771
+    mkdir /sqlite_stmt_journals 01771 root camera
+    mount tmpfs tmpfs /sqlite_stmt_journals size=4m
+    # chmod 0777 /sqlite_stmt_journals # org : 01771
+    chmod 01771 /sqlite_stmt_journals
+    chown root camera /sqlite_stmt_journals
+#--]] LGE_UBIQUIX_MODIFIED_END : nullcha@mnbt.co.kr - change sqlite_stmt_journals directory permission for Phone BT
+#--]] LGE_UBIQUIX_MODIFIED_END : scchoi@ubiquix.com [2011-08-16] - change sqlite_stmt_journals directry permission for CTS
+    
+    # Directory for putting things only root should see.
+    mkdir /mnt/secure 0700 root root
+
+    # Directory for staging bindmounts
+    mkdir /mnt/secure/staging 0700 root root
+
+    # Directory-target for where the secure container
+    # imagefile directory will be bind-mounted
+    mkdir /mnt/secure/asec  0700 root root
+
+    # Secure container public mount points.
+    mkdir /mnt/asec  0700 root system
+    mount tmpfs tmpfs /mnt/asec mode=0755,gid=1000
+    
+    # Filesystem image public mount points.
+    mkdir /mnt/obb 0700 root system
+    mount tmpfs tmpfs /mnt/obb mode=0755,gid=1000
+
+#[LGE_start] hyunwoong.ahn
+    mkdir /dvp 0771 system system
+    mkdir /dvp/hwkey 0771 system system
+    mkdir /dvp/userdata 0771 system system
+#[LGE_end] hyunwoong.ahn
+    #mount rootfs rootfs / ro remount
+
+    write /proc/sys/kernel/panic_on_oops 1
+    write /proc/sys/kernel/hung_task_timeout_secs 0
+    write /proc/cpu/alignment 4
+    write /proc/sys/kernel/sched_latency_ns 400000
+    write /proc/sys/kernel/sched_wakeup_granularity_ns 100000
+    write /proc/sys/kernel/sched_compat_yield 1
+    write /proc/sys/kernel/sched_child_runs_first 0
+
+# Create cgroup mount points for process groups
+    mkdir /dev/cpuctl
+    mount cgroup none /dev/cpuctl cpu
+    chown system system /dev/cpuctl
+    chown system system /dev/cpuctl/tasks
+    chmod 0777 /dev/cpuctl/tasks
+    write /dev/cpuctl/cpu.shares 1024
+
+    mkdir /dev/cpuctl/fg_boost
+    chown system system /dev/cpuctl/fg_boost/tasks
+    chmod 0777 /dev/cpuctl/fg_boost/tasks
+    write /dev/cpuctl/fg_boost/cpu.shares 1024
+
+    mkdir /dev/cpuctl/bg_non_interactive
+    chown system system /dev/cpuctl/bg_non_interactive/tasks
+    chmod 0777 /dev/cpuctl/bg_non_interactive/tasks
+    # 5.0 %
+    write /dev/cpuctl/bg_non_interactive/cpu.shares 52
+
+on fs
+    # mount mtd partitions
+    # Mount /system rw first to give the filesystem a chance to save a checkpoint
+    mount yaffs2 mtd@system /system
+    mount yaffs2 mtd@system /system rw remount
+
+    # We chown/chmod /data again so because mount is run as root + defaults
+    mount yaffs2 mtd@userdata /data nosuid nodev
+    chown system system /data
+    chmod 0771 /data
+
+# LGE_CHANGE_S, bae.cheolhwan@lge.com, 2011-04-13, Modify for the BIN CRC fail in HiddenMenu.
+#[nus]    chown root system /dev/block/mmcblk0p1
+#[nus]    chmod 0640 /dev/block/mmcblk0p1
+# LGE_CHANGE_E, bae.cheolhwan@lge.com, 2011-04-13, Modify for the BIN CRC fail in HiddenMenu.
+
+    mount yaffs2 mtd@dvpkey /dvp/hwkey nosuid nodev
+    chown system system /dvp/hwkey
+    chown system divxdrm /dvp/hwkey/key.hw
+    chmod 0660 /dvp/hwkey/key.hw	
+
+#--[[ LGE_UBIQUIX_MODIFIED_START : scchoi@ubiquix.com [2011-09-05] - Changed the dvp/userdata permission.
+    mount yaffs2 mtd@dvpdata /dvp/userdata nosuid nodev
+    chown system divxdrm /dvp/userdata
+    chmod 0776 /dvp/userdata
+#--]] LGE_UBIQUIX_MODIFIED_END : scchoi@ubiquix.com [2011-09-05] - Changed the dvp/userdata permission.
+
+# LGE_CHANGE_S, bae.cheolhwan@lge.com, 2011-03-02. Modify a partition number.
+# LGE_CHANGE_S, seokjae.yoon@lge.com, 2011-02-28, To fix the function of Factory Reset
+#[nus]    chmod 0777 /dev/block/mmcblk0p8
+#[nus]    chmod 0777 /dev/block/mmcblk0p10
+# LGE_CHANGE_E, seokjae.yoon@lge.com, 2011-02-28, To fix the function of Factory Reset
+# LGE_CHANGE_E, bae.cheolhwan@lge.com, 2011-03-02. Modify a partition number.
+
+
+# LGE_CHANGE_S, sangmin.baek@lge.com, 2011-03-21, for fota
+#[nus]    chmod 0777 /dev/block/mmcblk0
+#[nus]    mkdir /etc/dmc
+#[nus]    chmod 0777 /etc/dmc
+# LGE_CHANGE_E, sangmin.baek@lge.com, 2011-03-21, for fota
+
+#--[[ LGE_UBIQUIX_MODIFIED_START : scchoi@ubiquix.com [2011-08-08] - Changed the NV path.
+#//--[[ LGE_UBIQUIX_MODIFIED_START : scchoi@ubiquix.com [2011-06-22] - for NV data) 
+#    chmod 0666 /system/lge_nv.bin
+#//--]] LGE_UBIQUIX_MODIFIED_END : scchoi@ubiquix.com [2011-06-22] - for NV data)
+#--]] LGE_UBIQUIX_MODIFIED_END : scchoi@ubiquix.com [2011-08-08] - Changed the NV path.
+
+#--[[ LGE_UBIQUIX_MODIFIED_START : ymjun@mnbt.co.kr [2011.08.31] - TDMB : color
+#    chown system graphics /dev/graphics/fb0
+#    chmod 0640 /dev/graphics/fb0
+#--]] LGE_UBIQUIX_MODIFIED_END : ymjun@mnbt.co.kr [2011.08.31] - TDMB : color
+
+    # Create dump dir and collect dumps.
+    # Do this before we mount cache so eventually we can use cache for
+    # storing dumps on platforms which do not have a dedicated dump partition.
+   
+    mkdir /data/dontpanic
+# [[ LGE_UBIQUIX_MODIFIED_START : bjhyun@ubiquix.com [2011.12.01] - Modify owner and permission of dontpanic directory for log service
+	chown system system /data/dontpanic
+	chmod 0771 /data/dontpanic
+# ]] LGE_UBIQUIX_MODIFIED_END : bjhyun@ubiquix.com [2011.12.01] 
+
+//--[[ LGE_UBIQUIX_MODIFIED_START : jmpark@ubiquix.com [2011.07.01] - merge justin/black FROYO
+# 20101115, taein.kim@lge.com, make ringtone,alarm property directory [START]
+    mkdir /data/audioprop 
+    chown system system /data/audioprop
+    chmod 0777 /data/audioprop
+# 20101115, taein.kim@lge.com, make ringtone,alarm property directory [END]
+//--]] LGE_UBIQUIX_MODIFIED_END : jmpark@ubiquix.com [2011.07.01] - merge justin/black FROYO
+
+# [[ LGE_UBIQUIX_MODIFIED_START : shyun@ubiquix.com [2011.08.31] - Modify the ATS sysfs file.
+	chmod 0664 /sys/devices/platform/hub_ats.0/control
+	chown system radio /sys/devices/platform/hub_ats.0/control
+# ]] LGE_UBIQUIX_MODIFIED_END : shyun@ubiquix.com [2011.08.31]- Modify the ATS sysfs file.
+
+    # Collect apanic data, free resources and re-arm trigger
+    copy /proc/apanic_console /data/dontpanic/apanic_console
+    chown root log /data/dontpanic/apanic_console
+    chmod 0640 /data/dontpanic/apanic_console
+
+    copy /proc/apanic_threads /data/dontpanic/apanic_threads
+    chown root log /data/dontpanic/apanic_threads
+    chmod 0640 /data/dontpanic/apanic_threads
+
+    write /proc/apanic_console 1
+
+    # Collect ramconsole data
+# [[ LGE_UBIQUIX_MODIFIED_START : bjhyun@ubiquix.com [2011.12.02] - Change folder for saving last_kmsg
+#    copy /proc/last_kmsg /data/dontpanic/last_kmsg
+    copy /proc/last_kmsg /data/logger/last_kmsg
+# ]] LGE_UBIQUIX_MODIFIED_END : bjhyun@ubiquix.com [2011.12.02] 
+# [[ LGE_UBIQUIX_MODIFIED_START : bjhyun@ubiquix.com [2011.12.02] - Change permission of log files in logger folder [froyo(0600)->GB(0604)]
+    chmod 0604 /data/logger/radio.log
+    chmod 0604 /data/logger/radio.log.1
+    chmod 0604 /data/logger/radio.log.2
+    chmod 0604 /data/logger/radio.log.3
+    chmod 0604 /data/logger/radio.log.4
+    chmod 0604 /data/logger/events.log
+    chmod 0604 /data/logger/events.log.1
+    chmod 0604 /data/logger/events.log.2
+    chmod 0604 /data/logger/events.log.3
+    chmod 0604 /data/logger/events.log.4
+    chmod 0604 /data/logger/main.log
+    chmod 0604 /data/logger/main.log.1
+    chmod 0604 /data/logger/main.log.2
+    chmod 0604 /data/logger/main.log.3
+    chmod 0604 /data/logger/main.log.4
+    chmod 0604 /data/logger/system.log
+    chmod 0604 /data/logger/system.log.1
+    chmod 0604 /data/logger/system.log.2
+    chmod 0604 /data/logger/system.log.3
+    chmod 0604 /data/logger/system.log.4
+    chmod 0604 /data/logger/kernel.log
+    chmod 0604 /data/logger/last_kmsg
+# ]] LGE_UBIQUIX_MODIFIED_END : bjhyun@ubiquix.com [2011.12.02] 
+
+    # Same reason as /data above
+    mount yaffs2 mtd@cache /cache nosuid nodev
+    chown system cache /cache
+    chmod 0770 /cache
+
+#--[[ LGE_UBIQUIX_MODIFIED_START : scchoi@ubiquix.com [2011-09-05] - Changed the permission of NV path.
+    # Same reason as /data above
+    mount yaffs2 mtd@cache /cache nosuid nodev
+    chown system cache /cache
+    chmod 0770 /cache
+
+    mkdir /lge_nv
+    mount yaffs2 mtd@dvpdata /lge_nv nosuid nodev
+    exec /sbin/make_nv_bin
+    chown root system /lge_nv/lge_nv.bin
+    chmod 0666 /lge_nv/lge_nv.bin
+#--]] LGE_UBIQUIX_MODIFIED_END : scchoi@ubiquix.com [2011-09-05] - Changed the permisson of NV path.
+
+    # This may have been created by the recovery system with odd permissions
+    chown system system /cache/recovery
+    chmod 0770 /cache/recovery
+
+    #change permissions on vmallocinfo so we can grab it from bugreports
+    chown root log /proc/vmallocinfo
+    chmod 0440 /proc/vmallocinfo
+
+#--[[ LGE_UBIQUIX_MODIFIED_START : scchoi@ubiquix.com [2011-07-09] - Added to support Hidden menu
+    # change permission for factory reset in android_os_Power.cpp
+#--[[ LGE_UBIQUIX_MODIFIED_START : scchoi@ubiquix.com [2011-07-14] - Moved to ueventd.rc
+#    chown root system /dev/mtd/mtd5
+#    chown 0640 /dev/mtd/mtd5
+#--[[ LGE_UBIQUIX_MODIFIED_END : scchoi@ubiquix.com [2011-07-14] - Moved to ueventd.rc
+
+    chown root system /dev/mtd/mtd0
+    chown root system /dev/mtd/mtd1
+    chown root system /dev/mtd/mtd3
+    chmod 0640 /dev/mtd/mtd0
+    chmod 0640 /dev/mtd/mtd1
+    chmod 0640 /dev/mtd/mtd3
+#--[[ LGE_UBIQUIX_MODIFIED_END : scchoi@ubiquix.com [2011-07-09] - Added to support Hidden menu
+
+    #change permissions on kmsg & sysrq-trigger so bugreports can grab kthread stacks
+    chown root system /proc/kmsg
+    chmod 0440 /proc/kmsg
+    chown root system /proc/sysrq-trigger
+    chmod 0220 /proc/sysrq-trigger
+
+# LGE_CHANGE_S, bae.cheolhwan@lge.com, 2011-05-10. Modify a hidden reset fuction.
+    chown system system /sys/power/hidden_reset
+    chmod 0664 /sys/power/hidden_reset
+    chown system system /sys/power/reset_status
+    chmod 0664 /sys/power/reset_status
+# LGE_CHANGE_E, bae.cheolhwan@lge.com, 2011-05-10. Modify a hidden reset fuction.
+
+    # change permission because of FactoryTestService.java 20110326 [jaejoong.kim@lge.com]
+    chmod 0777 /proc/driver/hmuic
+    chown system system /proc/driver/hmuic
+
+# 20101128 sookyoung.kim@lge.com LG-DVFS [START_LGE]
+    chown system system /sys/devices/system/cpu/cpu0/cpufreq/turn_on_lg_dvfs
+    chmod 0660 /sys/devices/system/cpu/cpu0/cpufreq/turn_on_lg_dvfs
+    # Initialize to 0 here. Upon systemReady, it will be set to 1 in PowerManagerService.java
+    write /sys/devices/system/cpu/cpu0/cpufreq/turn_on_lg_dvfs 0
+# 20101128 sookyoung.kim@lge.com LG-DVFS [END_LGE]
+
+# Enable SmartReflex autocompensation on VDD1 & VDD2
+	mount debugfs debugfs /sys/kernel/debug mode=0755,gid=1000
+	write /sys/kernel/debug/pm_debug/smartreflex/sr_mpu/autocomp 1
+	write /sys/kernel/debug/pm_debug/smartreflex/sr_core/autocomp 1
+
+# create basic filesystem structure
+    mkdir /data/misc 01771 system misc
+    mkdir /data/misc/bluetoothd 0770 bluetooth bluetooth
+    mkdir /data/misc/bluetooth 0770 system system
+    mkdir /data/misc/keystore 0700 keystore keystore
+    mkdir /data/misc/systemkeys 0700 system system
+    mkdir /data/misc/vpn 0770 system system
+    mkdir /data/misc/vpn/profiles 0770 system system
+    # give system access to wpa_supplicant.conf for backup and restore
+##//--[[ LGE_UBIQUIX_MODIFIED_START : [jhyou79@mnbt.co.kr] - for uses ti wl1271
+    mkdir /data/misc/wifi 0771 wifi wifi
+    mkdir /data/misc/wifi/softap 0771 wifi wifi
+##//--]] LGE_UBIQUIX_MODIFIED_END : [jhyou79@mnbt.co.kr] for uses ti wl1271
+    mkdir /data/misc/wifi/sockets 0771 wifi wifi
+    mkdir /data/misc/dhcp 0777 wifi wifi
+    mkdir /data/local 0771 shell shell
+    mkdir /data/local/tmp 0771 shell shell
+    mkdir /data/data 0771 system system
+    mkdir /data/app-private 0771 system system
+    mkdir /data/app 0771 system system
+    mkdir /data/property 0700 root root
+
+#--[[ LGE_UBIQUIX_MODIFIED_START : jhyou79@mnbt.co.kr [2011.08.25] - Auto IP
+    chmod 0777 /system/etc/dhcpcd/dhcpcd-run-hooks
+#--]] LGE_UBIQUIX_MODIFIED_END : jhyou79@mnbt.co.kr [2011.08.25] - Auto IP
+
+# LGE_UBIQUIX_MODIFIED_START : hskim@ubiquix.com - add justin_froyo (2011-06-21)
+# LGE_CHANGE_S LGT_REQ  [jinho.hwang@lge.com][2010-08-24][BEGIN]
+    mkdir /data/LGTContents 0771 system lgt_gid
+    mkdir /data/LGTContents/app 0771 system lgt_gid
+    mkdir /data/LGTContents/video 0771 system lgt_gid
+    mkdir /data/LGTContents/music 0771 system lgt_gid
+    mkdir /data/LGTContents/bell 0771 system lgt_gid
+    mkdir /data/LGTContents/DLtmp 0771 system lgt_gid
+    chmod 771 /system/persist    
+    chmod 665 /system/persist/lguplus.xml
+# LGE_CHANGE_E LGT_REQ  [jinho.hwang@lge.com][2010-08-24][END]
+# LGE_UBIQUIX_MODIFIED_END : hskim@ubiquix.com - add justin_froyo (2011-06-21) 
+	
+    # create Blue TaskManager - intelligent_killer.db 
+    mkdir /data/disk 0777 system system
+# LGE_CHANGE_S, ryu.seeyeol@lge.com, 2011-03-25, Move from P970 for Log Service
+	# Log Service [START]
+	mkdir /data/logger 0771 system system
+	chown system system /data/logger
+	chmod 0771 /data/logger
+	# Log Service [END]
+# LGE_CHANGE_E, ryu.seeyeol@lge.com, 2011-03-25, Move from P970 for Log Service
+
+#[start][hbj_gb-work][jumaeng99@ubivelox.com][2011.06.21] : porting work for Message application.
+    mkdir /data/mms 0771 system lgt_gid
+    mkdir /data/mms/attach 0771 system lgt_gid
+    mkdir /data/mms/attach/photo 0771 system lgt_gid
+    mkdir /data/mms/attach/video 0771 system lgt_gid
+    mkdir /data/mms/attach/paper 0771 system lgt_gid
+    mkdir /data/mms/attach/mcard 0771 system lgt_gid
+    mkdir /data/mms/attach/music 0771 system lgt_gid
+    mkdir /data/mms/attach/voice 0771 system lgt_gid
+    mkdir /data/mms/attach/thumbnail 0771 system lgt_gid
+    mkdir /data/mms/receive 0771 system lgt_gid
+    mkdir /data/mms/send 0771 system lgt_gid
+    mkdir /data/mms/temp 0771 system lgt_gid
+    mkdir /system/mms 0771 system lgt_gid
+    mkdir /system/mms/default 0771 system lgt_gid
+    mkdir /system/mms/default/paper 0771 system lgt_gid
+    mkdir /system/mms/default/mcard 0771 system lgt_gid
+#[-end-][hbj_gb-work][jumaeng99@ubivelox.com][2011.06.21] : porting work for Message application.
+
+    # create dalvik-cache and double-check the perms
+    mkdir /data/dalvik-cache 0771 system system
+    chown system system /data/dalvik-cache
+    chmod 0771 /data/dalvik-cache
+
+    # create the lost+found directories, so as to enforce our permissions
+    mkdir /data/lost+found 0770
+    mkdir /cache/lost+found 0770
+
+    # double check the perms, in case lost+found already exists, and set owner
+    chown root root /data/lost+found
+    chmod 0770 /data/lost+found
+    chown root root /cache/lost+found
+    chmod 0770 /cache/lost+found
+    chown root root /lost+found
+    chmod 0770 /lost+found
+
+# LGE_CHANGE_S, sangmin.baek@lge.com, 2011-03-21, for fota
+	mkdir /data/fota 0777 system system
+	chown system system /data/fota 
+	chmod 0777 /data/fota
+# LGE_CHANGE_E, sangmin.baek@lge.com, 2011-03-21, for fota
+# LGE_CHANGE_S, bae.cheolhwan@lge.com, 2011-03-19, Delete a LGDRM partition.
+##ifdef (ANDY_LGDRM)
+### ANDY_PORTING LGDRM [lg-drm@lge.com 100401]
+#    # We chown/chmod /lgdrm again so because mount is run as root + defaults
+#    mkdir /lgdrm 0770 lgdrm lgdrm_acc
+#
+#    mount ext4 /dev/block/mmcblk0p8 /lgdrm nosuid nodev
+#    chown lgdrm lgdrm_acc /lgdrm
+#    chmod 0770 /lgdrm
+#
+#    # create dirs if not exist
+#    mkdir /data/lgdrm 0770 lgdrm lgdrm_acc
+#    mkdir /data/wmdrm 0770 lgdrm lgdrm_acc
+### ANDY_END
+##endif
+# LGE_CHANGE_E, bae.cheolhwan@lge.com, 2011-03-19, Delete a LGDRM partition.
+
+#if defined(ANDY_ERS)
+## ERS
+    mkdir /data/data/com.lge.ers
+    mkdir /data/data/com.lge.ers/android
+    mkdir /data/data/com.lge.ers/kernel
+    mkdir /data/data/com.lge.ers/arm9
+    chmod 0777 /data/data/com.lge.ers/android
+    chmod 0777 /data/data/com.lge.ers/kernel
+    chmod 0777 /data/data/com.lge.ers/arm9
+#endif
+
+#--[[ LGE_UBIQUIX_MODIFIED_START : nullcha@mnbt.co.kr - make direcotry for btips
+# btips DDB location 
+    mkdir /data/btips  
+    chmod 0777 /data/btips
+    chown bluetooth bluetooth /data/btips
+    mkdir /data/btips/TI
+    chmod 0777 /data/btips/TI
+    chown bluetooth bluetooth /data/btips/TI
+    mkdir /data/btips/TI/opp
+    chmod 0777 /data/btips/TI/opp
+    chown bluetooth bluetooth /data/btips/TI/opp
+    mkdir /data/btips/TI/bpp
+    chmod 0777 /data/btips/TI/bpp
+    chown bluetooth bluetooth /data/btips/TI/opp
+#--]] LGE_UBIQUIX_MODIFIED_END : nullcha@mnbt.co.kr - make direcotry for btips
+
+# ymjeong72@lge.com : Add folder for Hub Froyo Theme service apps : 20110805 [START] : ymjeong72@lge.com : Removed by binary size : 20110822
+# 2010. 10. 2. jeonghoon.yi@lge.com for LGT_REQ [Start]
+#    mkdir /system/LGTApps
+#    chmod 0777 /system/LGTApps
+# 2010. 10. 2. jeonghoon.yi@lge.com for LGT_REQ [End] 
+# ymjeong72@lge.com : Add folder for Hub Froyo Theme service apps : 20110805 [END]
+
+#--[[ LGE_UBIQUIX_MODIFIED_START : bjhyun@ubiquix.com - change owner of the folowing items to system
+	chown system system /sys/devices/platform/i2c_omap.1/i2c-1/1-004a/twl4030_keypad/key_test_mode
+	chown system system /sys/devices/platform/i2c_omap.2/i2c-2/2-0060/backlight_on_off
+	chown system system /sys/devices/platform/i2c_omap.1/i2c-1/1-0049/twl4030_pwrbutton/pwrbutton_test_mode
+#--]] LGE_UBIQUIX_MODIFIED_END : bjhyun@ubiquix.com - change owner of the folowing items to system
+
+##//--[[  Mwlan_GB_MODIFIED_START : [yung.im@lge.com]
+insmod /system/lib/modules/mwlan_aarp.ko
+##//--]]  Mwlan_GB_MODIFIED_END : [yung.im@lge.com]
+
+on boot
+# basic network init
+    ifup lo
+    hostname localhost
+    domainname localdomain
+
+# set RLIMIT_NICE to allow priorities from 19 to -20
+    setrlimit 13 40 40
+
+# Define the oom_adj values for the classes of processes that can be
+# killed by the kernel.  These are used in ActivityManagerService.
+    setprop ro.FOREGROUND_APP_ADJ 0
+    setprop ro.VISIBLE_APP_ADJ 1
+    setprop ro.PERCEPTIBLE_APP_ADJ 2
+    setprop ro.HEAVY_WEIGHT_APP_ADJ 3
+    setprop ro.SECONDARY_SERVER_ADJ 2
+    setprop ro.BACKUP_APP_ADJ 2
+    setprop ro.HOME_APP_ADJ 4
+    setprop ro.HIDDEN_APP_MIN_ADJ 7
+    setprop ro.CONTENT_PROVIDER_ADJ 14
+    setprop ro.EMPTY_APP_ADJ 15
+
+# Define the memory thresholds at which the above process classes will
+# be killed.  These numbers are in pages (4k).
+    setprop ro.FOREGROUND_APP_MEM 3072
+    setprop ro.VISIBLE_APP_MEM 4096
+    setprop ro.SECONDARY_SERVER_MEM 8192
+    setprop ro.BACKUP_APP_MEM 8192
+    setprop ro.HOME_APP_MEM 8192
+    setprop ro.HIDDEN_APP_MEM 10240
+    setprop ro.CONTENT_PROVIDER_MEM 11264
+    setprop ro.EMPTY_APP_MEM 12288
+#    setprop ro.FOREGROUND_APP_MEM 1536
+#    setprop ro.VISIBLE_APP_MEM 2048
+#    setprop ro.SECONDARY_SERVER_MEM 4096
+#    setprop ro.BACKUP_APP_MEM 4096
+#    setprop ro.HOME_APP_MEM 4096
+#    setprop ro.HIDDEN_APP_MEM 5120
+#    setprop ro.CONTENT_PROVIDER_MEM 5632
+#    setprop ro.EMPTY_APP_MEM 6144
+
+    setprop ro.PERCEPTIBLE_APP_MEM 4096
+    setprop ro.HEAVY_WEIGHT_APP_MEM 4096
+
+    setprop debug.performance.tuning 1
+    setprop video.accelerate.hw 1
+    setprop debug.sf.hw 1
+    setprop windowsmgr.max_events_per_sec 100
+
+# Write value must be consistent with the above properties.
+# Note that the driver only supports 6 slots, so we have HOME_APP at the
+# same memory level as services.
+    write /sys/module/lowmemorykiller/parameters/adj 0,1,2,7,14,15
+
+    write /proc/sys/vm/overcommit_memory 1
+    write /proc/sys/vm/min_free_order_shift 4
+    write /sys/module/lowmemorykiller/parameters/minfree 3072,4096,8192,10240,11264,12288
+#    write /sys/module/lowmemorykiller/parameters/minfree 1536,2048,4096,5120,5632,6144
+
+    # Set init its forked children's oom_adj.
+    write /proc/1/oom_adj -16
+
+# Tweak background writeout
+    write /proc/sys/vm/dirty_expire_centisecs 200
+    write /proc/sys/vm/dirty_background_ratio  5
+
+
+    # Permissions for System Server and daemons.
+    chown radio system /sys/android_power/state
+    chown radio system /sys/android_power/request_state
+    chown radio system /sys/android_power/acquire_full_wake_lock
+    chown radio system /sys/android_power/acquire_partial_wake_lock
+    chown radio system /sys/android_power/release_wake_lock
+    chown radio system /sys/power/state
+    chown radio system /sys/power/wake_lock
+    chown radio system /sys/power/wake_unlock
+    chmod 0660 /sys/power/state
+    chmod 0660 /sys/power/wake_lock
+    chmod 0660 /sys/power/wake_unlock
+    chown system system /sys/class/timed_output/vibrator/enable
+    chown system system /sys/class/leds/keyboard-backlight/brightness
+    chown system system /sys/class/leds/lcd-backlight/brightness
+    chown system system /sys/class/leds/button-backlight/brightness
+    chown system system /sys/class/leds/jogball-backlight/brightness
+    chown system system /sys/class/leds/red/brightness
+    chown system system /sys/class/leds/green/brightness
+    chown system system /sys/class/leds/blue/brightness
+    chown system system /sys/class/leds/red/device/grpfreq
+    chown system system /sys/class/leds/red/device/grppwm
+    chown system system /sys/class/leds/red/device/blink
+    chown system system /sys/class/leds/red/brightness
+    chown system system /sys/class/leds/green/brightness
+    chown system system /sys/class/leds/blue/brightness
+    chown system system /sys/class/leds/red/device/grpfreq
+    chown system system /sys/class/leds/red/device/grppwm
+    chown system system /sys/class/leds/red/device/blink
+    chown system system /sys/class/timed_output/vibrator/enable
+    chown system system /sys/module/sco/parameters/disable_esco
+    chown system system /sys/kernel/ipv4/tcp_wmem_min
+    chown system system /sys/kernel/ipv4/tcp_wmem_def
+    chown system system /sys/kernel/ipv4/tcp_wmem_max
+    chown system system /sys/kernel/ipv4/tcp_rmem_min
+    chown system system /sys/kernel/ipv4/tcp_rmem_def
+    chown system system /sys/kernel/ipv4/tcp_rmem_max
+    chown root radio /proc/cmdline
+
+# Define TCP buffer sizes for various networks
+#   ReadMin, ReadInitial, ReadMax, WriteMin, WriteInitial, WriteMax,
+    setprop net.tcp.buffersize.default 4096,87380,256960,4096,16384,256960
+    setprop net.tcp.buffersize.wifi    4096,87380,256960,4096,16384,256960
+    setprop net.tcp.buffersize.umts    4096,87380,256960,4096,16384,256960
+    setprop net.tcp.buffersize.edge    4096,87380,256960,4096,16384,256960
+    setprop net.tcp.buffersize.gprs    4096,87380,256960,4096,16384,256960
+
+# by VBB
+#    setprop net.dns1 208.67.222.222
+#    setprop net.dns2 208.67.220.220
+
+    class_start default
+
+# set properties for pppd demon
+    chmod 0777 /system/bin/pppd
+    chown root radio /system/bin/pppd
+    chmod 0777 /etc/init.gprs-pppd
+    chown root radio /etc/init.gprs-pppd
+    chmod 0777 /etc/ppp/ip-down
+    chown root radio /etc/ppp/ip-down
+    chmod 0777 /etc/ppp/ip-up
+    chown root radio /etc/ppp/ip-up
+
+# LGE_UBIQUIX_MODIFIED_START : hskim@ubiquix.com - add justin_froyo               
+# LGE_CHANGE_S, [DATA_LAB1_LGT_FROYO_016][LGE_DATA][bongsook.jeong@lge.com], 2010-01-05 :init.vsnet => int_lgt.vsnet
+    chmod 0777 /etc/init_lgt.vsnet
+    chown root radio /etc/init_lgt.vsnet
+# LGE_CHANGE_E, [DATA_LAB1_LGT_FROYO_016][LGE_DATA][bongsook.jeong@lge.com], 2010-01-05
+# LGE_UBIQUIX_MODIFIED_END : hskim@ubiquix.com - add justin_froyo  
+
+# HDMI modify : hycho@ubiquix.com - hdmi shell command error
+        chown media system /sys/devices/platform/omapdss/display0/name
+        chmod 0664 /sys/devices/platform/omapdss/display0/name
+        chown media system /sys/devices/platform/omapdss/display1/name
+        chmod 0664 /sys/devices/platform/omapdss/display1/name
+        chown media system /sys/devices/platform/omapdss/display0/enabled
+        chmod 0664 /sys/devices/platform/omapdss/display0/enabled
+        chown media system /sys/devices/platform/omapdss/display1/enabled
+        chmod 0664 /sys/devices/platform/omapdss/display1/enabled
+        chown media system /sys/devices/platform/omapdss/display0/timings
+        chmod 0664 /sys/devices/platform/omapdss/display0/timings
+        chown media system /sys/devices/platform/omapdss/display1/timings
+        chmod 0664 /sys/devices/platform/omapdss/display1/timings
+        chown media system /sys/devices/platform/omapdss/overlay0/manager
+        chmod 0664 /sys/devices/platform/omapdss/overlay0/manager
+        chown media system /sys/devices/platform/omapdss/overlay1/manager
+        chmod 0664 /sys/devices/platform/omapdss/overlay1/manager
+        chown media system /sys/devices/platform/omapdss/overlay2/manager
+        chmod 0664 /sys/devices/platform/omapdss/overlay2/manager
+        chmod 0664 /sys/devices/platform/omapdss/overlay0/zorder
+        chmod 0664 /sys/devices/platform/omapdss/overlay1/zorder
+        chmod 0664 /sys/devices/platform/omapdss/overlay2/zorder
+        chown media system /sys/devices/platform/omapdss/overlay0/enabled
+        chmod 0664 /sys/devices/platform/omapdss/overlay0/enabled
+        chown media system /sys/devices/platform/omapdss/overlay1/enabled
+        chmod 0664 /sys/devices/platform/omapdss/overlay1/enabled
+        chown media system /sys/devices/platform/omapdss/overlay2/enabled
+        chmod 0664 /sys/devices/platform/omapdss/overlay2/enabled
+        chown media system /sys/devices/platform/omapdss/manager0/display
+        chmod 0664 /sys/devices/platform/omapdss/manager0/display
+        chown media system /sys/devices/platform/omapdss/manager1/display
+        chmod 0664 /sys/devices/platform/omapdss/manager1/display
+        chmod 0664 /sys/devices/platform/omapdss/manager0/trans_key_enabled
+        chmod 0664 /sys/devices/platform/omapdss/manager1/trans_key_enabled
+        chmod 0664 /sys/devices/platform/omapdss/manager0/trans_key_type
+        chmod 0664 /sys/devices/platform/omapdss/manager1/trans_key_type
+        chmod 0664 /sys/devices/platform/omapdss/manager0/trans_key_value
+        chmod 0664 /sys/devices/platform/omapdss/manager1/trans_key_value
+        chmod 0664 /sys/devices/platform/omapdss/manager0/alpha_blending_enabled
+        chmod 0664 /sys/devices/platform/omapdss/manager1/alpha_blending_enabled
+        chown media system /sys/devices/platform/omapdss/display1/device_detect_enabled
+        chmod 0664 /sys/devices/platform/omapdss/display1/device_detect_enabled
+        chown media system /sys/devices/platform/omapdss/overlay1/output_size
+        chmod 0664 /sys/devices/platform/omapdss/overlay1/output_size
+	chown system system /sys/devices/platform/i2c_omap.2/i2c-2/2-0060/leds/lcd-backlight/als_option
+	chmod 0664 /sys/devices/platform/i2c_omap.2/i2c-2/2-0060/leds/lcd-backlight/onoff
+	chown system system /sys/devices/platform/i2c_omap.2/i2c-2/2-0060/leds/lcd-backlight/onoff
+	chmod 0664 /sys/devices/platform/i2c_omap.2/i2c-2/2-0060/leds/lcd-backlight/alsgain_control
+	chown system system  /sys/devices/platform/i2c_omap.2/i2c-2/2-0060/leds/lcd-backlight/alsgain_control
+	chmod 0664 /sys/devices/platform/i2c_omap.2/i2c-2/2-0060/leds/lcd-backlight/als_control
+	chown system system /sys/devices/platform/i2c_omap.2/i2c-2/2-0060/leds/lcd-backlight/als_control
+	chmod 0664 /sys/devices/platform/i2c_omap.2/i2c-2/2-0060/leds/lcd-backlight/als
+	chown system system /sys/devices/platform/i2c_omap.2/i2c-2/2-0060/leds/lcd-backlight/als
+	write /sys/devices/platform/omapdss/manager0/alpha_blending_enabled 1
+
+# MMS: Create log directory for fw3a_core
+#    mkdir /data/log/fw3A 0775 root root
+
+# change permissions for alsa nodes
+    symlink /dev/snd/pcmC0D0c /dev/pcmC0D0c
+    symlink /dev/snd/pcmC0D0p /dev/pcmC0D0p
+    symlink /dev/snd/controlC0 /dev/controlC0
+    symlink /dev/snd/timer /dev/timer
+    chmod 0777 /dev/pcmC0D0c
+    chmod 0777 /dev/pcmC0D0p
+    chmod 0777 /dev/controlC0
+    chmod 0777 /dev/timer
+
+# change permissions for modem
+    chmod 0660 /dev/ttyspi0
+    chown radio radio /dev/ttyspi0
+
+    chmod 0660 /dev/ttyspi1
+    chown radio radio /dev/ttyspi1
+
+# LGE_KERNEL_MUX
+    chmod 0660 /dev/pts1
+    chown radio radio /dev/pts1
+    chmod 0660 /dev/pts2
+    chown radio radio /dev/pts2
+    chmod 0660 /dev/pts3
+    chown radio radio /dev/pts3
+    chmod 0660 /dev/pts4
+    chown radio radio /dev/pts4
+    chmod 0660 /dev/pts5
+    chown radio radio /dev/pts5
+    chmod 0660 /dev/pts6
+    chown radio radio /dev/pts6
+    chmod 0660 /dev/pts7
+    chown radio radio /dev/pts7
+    chmod 0660 /dev/pts8
+    chown radio radio /dev/pts8
+    chmod 0660 /dev/pts9
+    chown radio radio /dev/pts9
+    chmod 0660 /dev/pts10
+    chown radio radio /dev/pts10
+    chmod 0660 /dev/pts11
+    chown radio radio /dev/pts11
+    chmod 0660 /dev/pts12
+    chown radio radio /dev/pts12
+    chmod 0660 /dev/pts13
+    chown radio radio /dev/pts13
+    chmod 0660 /dev/pts14
+    chown radio radio /dev/pts14
+    chmod 0660 /dev/pts15
+    chown radio radio /dev/pts15
+    chmod 0660 /dev/pts16
+    chown radio radio /dev/pts16
+    chmod 0660 /dev/pts17
+    chown radio radio /dev/pts17
+    chmod 0660 /dev/pts18
+    chown radio radio /dev/pts18
+    chmod 0660 /dev/pts19
+    chown radio radio /dev/pts19
+    chmod 0660 /dev/pts20
+    chown radio radio /dev/pts20
+    chmod 0660 /dev/pts21
+    chown radio radio /dev/pts21
+    chmod 0660 /dev/pts22
+    chown radio radio /dev/pts22
+    chmod 0660 /dev/pts23
+    chown radio radio /dev/pts23
+    chmod 0660 /dev/pts24
+    chown radio radio /dev/pts24
+    chmod 0660 /dev/pts25
+    chown radio radio /dev/pts25
+    chmod 0660 /dev/pts26
+    chown radio radio /dev/pts26
+    chmod 0660 /dev/pts27
+    chown radio radio /dev/pts27
+    chmod 0660 /dev/pts28
+    chown radio radio /dev/pts28
+    chmod 0660 /dev/pts29
+    chown radio radio /dev/pts29
+    chmod 0660 /dev/pts30
+    chown radio radio /dev/pts30
+    chmod 0660 /dev/pts31
+    chown radio radio /dev/pts31
+
+# LGE_UPDATE_S 20110126 jaejoong.kim@lge.com change permission
+    chmod 0777 /dev/ttyGS0
+    chmod 0777 /dev/ttyGS1
+    chmod 0777 /dev/ttyGS2
+# LGE_UPDATE_E 20110126 jaejoong.kim@lge.com change permission
+
+# change permissions for modem
+    chmod 0660 /dev/ttyS0
+    chown radio radio /dev/ttyS0
+
+# change permissions for bridge.  Symlink search directory
+    chmod 0777 /dev/DspBridge
+
+# change permissions for Camera
+    chmod 0777 /dev/video0
+    chmod 0777 /dev/video5
+    chmod 0777 /dev/video6
+    chmod 0777 /dev/video10
+
+# change permissions for Overlay
+    chmod 0777 /dev/video1
+    chmod 0777 /dev/video2
+    
+# change permissions for Previewer and Resizer
+    chmod 0777 /dev/omap-previewer
+    chmod 0777 /dev/omap-resizer
+    chmod 0777 /dev/omap-prev2resz
+
+	chmod 0666 /dev/hdmitx
+	chmod 0666 /dev/hdmicec
+
+# Bluetooth
+    chmod 0660 /dev/ttyO1
+    chown root bluetooth /dev/ttyO1	#bluetooth for CTS by Nullcha
+#--[[ LGE_UBIQUIX_MODIFIED_START : nullcha@mnbt.co.kr - add and delete setting for TI bluetooth
+
+    chmod 0660 sys/class/rfkill/rfkill0/state
+    chown root bluetooth /sys/class/rfkill/rfkill0/state #bluetooth for CTS
+    write sys/class/rfkill/rfkill0/state 0
+
+#BTIPS AVRCP Permission
+	chmod 0660 /dev/input/uinput	#777 for CTS
+        chmod 0660 /dev/uinput		#777 for CTS
+
+### Below setting is for broadcom bluetooth
+#    chmod 0660 /sys/class/rfkill/rfkill0/state
+#    chmod 0660 /sys/class/rfkill/rfkill0/type
+#    chmod 0660 /sys/class/rfkill/rfkill1/state
+#    chmod 0660 /sys/class/rfkill/rfkill1/type
+#    chmod 0666 /sys/devices/platform/bd_address/bdaddr_if
+#    chown bluetooth bluetooth /sys/class/rfkill/rfkill0/state
+#    chown bluetooth bluetooth /sys/class/rfkill/rfkill0/type
+#    chown bluetooth bluetooth /sys/class/rfkill/rfkill1/state
+#    chown bluetooth bluetooth /sys/class/rfkill/rfkill1/type
+#    write /sys/class/rfkill/rfkill0/state 0
+### // Below setting is for broadcom bluetooth
+
+#--]] LGE_UBIQUIX_MODIFIED_START : nullcha@mnbt.co.kr - add and delete setting for TI bluetooth
+
+# Sensor
+    chown system system /dev/akm8973_daemon
+	chown system system /dev/kxtf9_accel
+    chown system system /dev/akm8973_aot
+# LGE_CHANGE_S, ryu.seeyeol@lge.com, 2011-02-01, Sensors Porting (MPL V3.3 Release)
+    chmod 0777 /dev/mpu
+    chmod 0777 /dev/mpuirq
+    chmod 0777 /dev/accelirq
+    chmod 0777 /dev/timerirq
+# LGE_CHANGE_E, ryu.seeyeol@lge.com, 2011-02-01, Sensors Porting (MPL V3.3 Release)
+    chmod 0666 /dev/akm8973_daemon
+    chmod 0666 /dev/akm8973_aot
+	chmod 0666 /dev/kxtf9_accel
+    chown system system /dev/motion_daemon
+    chown system system /dev/accel_api
+    chmod 0666 /dev/motion_daemon
+    chmod 0666 /dev/accel_api
+    chown system system /sys/devices/platform/motion_sensor/accel_onoff
+    chown system system /sys/devices/platform/motion_sensor/accel_delay
+    chown system system /sys/devices/platform/motion_sensor/compass_onoff
+    chown system system /sys/devices/platform/motion_sensor/compass_delay
+    chown system system /sys/devices/platform/motion_sensor/tilt_onoff
+    chown system system /sys/devices/platform/motion_sensor/tilt_delay
+    chown system system /sys/devices/platform/motion_sensor/gyro_onoff
+    chown system system /sys/devices/platform/motion_sensor/gyro_delay
+# [[ LGE_UBIQUIX_MODIFIED_START : shyun@ubiquix.com [2011.08.18] - Proximity sysfs file path is modified.
+    chown system system /sys/bus/i2c/drivers/hub_proxi/2-0044/onoff
+    chown system system /sys/bus/i2c/drivers/hub_proxi/2-0044/delay
+# ]] LGE_UBIQUIX_MODIFIED_END : shyun@ubiquix.com [2011.08.18]- Proximity sysfs file path is modified.
+    chown system system /sys/devices/platform/motion_sensor/shake_onoff
+    chown system system /sys/bus/i2c/drivers/kxtf9/3-000f/shake_onoff
+    chown system system /sys/devices/platform/motion_sensor/snap_onoff
+    chown system system /sys/bus/i2c/drivers/kxtf9/3-000f/snap_onoff
+    chown system system /sys/devices/platform/motion_sensor/flip_onoff
+    chown system system /sys/bus/i2c/drivers/kxtf9/3-000f/flip_onoff
+    chown system system /sys/devices/platform/motion_sensor/tap_onoff
+    chown system system /sys/bus/i2c/drivers/kxtf9/3-000f/tap_onoff
+    chown system system /sys/devices/platform/motion_sensor/yawimage_onoff
+    chown system system /sys/devices/platform/i2c-gpio.7/i2c-adapter/i2c-7/7-001c/checkresult
+    chown system system /sys/devices/platform/i2c-gpio.7/i2c-adapter/i2c-7/7-001c/checkopmode
+# [[ LGE_UBIQUIX_MODIFIED_START : shyun@ubiquix.com [2011.08.18] - Sensor permission is modified(0666 -> 0664).
+    chmod 0664 /sys/devices/platform/motion_sensor/accel_onoff
+    chmod 0664 /sys/devices/platform/motion_sensor/accel_delay
+    chmod 0664 /sys/devices/platform/motion_sensor/compass_onoff
+    chmod 0664 /sys/devices/platform/motion_sensor/compass_delay
+    chmod 0664 /sys/devices/platform/motion_sensor/tilt_onoff
+    chmod 0664 /sys/devices/platform/motion_sensor/tilt_delay
+    chmod 0664 /sys/devices/platform/motion_sensor/gyro_onoff
+    chmod 0664 /sys/devices/platform/motion_sensor/gyro_delay
+# [[ LGE_UBIQUIX_MODIFIED_START : shyun@ubiquix.com [2011.08.18] - Proximity sysfs file path is modified.
+    chmod 0664 /sys/bus/i2c/drivers/hub_proxi/2-0044/onoff
+    chmod 0664 /sys/bus/i2c/drivers/hub_proxi/2-0044/delay
+# ]] LGE_UBIQUIX_MODIFIED_END : shyun@ubiquix.com [2011.08.18]- Proximity sysfs file path is modified.
+    chmod 0664 /sys/devices/platform/motion_sensor/shake_onoff
+    chmod 0664 /sys/bus/i2c/drivers/kxtf9/3-000f/shake_onoff
+    chmod 0664 /sys/devices/platform/motion_sensor/snap_onoff
+    chmod 0664 /sys/bus/i2c/drivers/kxtf9/3-000f/snap_onoff
+    chmod 0664 /sys/devices/platform/motion_sensor/flip_onoff
+    chmod 0664 /sys/bus/i2c/drivers/kxtf9/3-000f/flip_onoff
+    chmod 0664 /sys/devices/platform/motion_sensor/tap_onoff
+    chmod 0664 /sys/bus/i2c/drivers/kxtf9/3-000f/tap_onoff
+    chmod 0664 /sys/devices/platform/motion_sensor/yawimage_onoff
+# ]] LGE_UBIQUIX_MODIFIED_END : shyun@ubiquix.com [2011.08.18]- Sensor permission is modified(0666 -> 0664).
+    chmod 0664 /sys/devices/platform/i2c-gpio.7/i2c-adapter/i2c-7/7-001c/checkresult
+    chmod 0664 /sys/devices/platform/i2c-gpio.7/i2c-adapter/i2c-7/7-001c/checkopmode
+	
+# add for XT9 user dictionary
+    mkdir /data/xt9 0777 system system
+    chown system system /data/xt9
+    chmod 0777 /data/xt9
+
+# GPS Porting
+    mkdir /data/gps
+    chmod 777 /data/gps
+    mkdir /data/cache
+    chmod 777 /data/cache
+    mkdir /data/gps/var
+    chmod 777 /data/gps/var
+    mkdir /data/gps/var/run
+    chmod 777 /data/gps/var/run
+    mkdir /data/gps/log
+    chmod 777 /data/gps/log
+    chmod 777 /system/bin/
+    chmod 777 /system/etc/
+    chmod 777 /system/bin/glgps
+    chmod 777 /system/etc/gps_brcm_conf.xml
+    chmod 777 /system/etc/cert/lge.cer
+    chmod 777 /system/etc/cert/537a0176.0
+    chmod 777 /system/etc/cert/c9dbfc2e.0
+    chmod 777 /system/etc/cert/7651b327.0
+    chmod 777 /system/etc/cert/72fa7371.0
+    chmod 777 /system/etc/cert/583a21ed.0
+    chmod 777 /system/etc/cert/c33a80d4.0
+    chmod 777 /system/etc/cert/ddc328ff.0
+    
+# vibrator
+	chown shell system /dev/tspdrv
+	chmod 0660 /dev/tspdrv
+
+#create LGMTP dirs if not exist
+    mkdir /data/lgmtp 0777
+    
+# Enable Power Management 
+
+##--[[ LGE_UBIQUIX_MODIFIED_START : [jhyou79@mnbt.co.kr] - uses ti wl1271
+# Copying hostapd.conf (WLAN soft AP)
+    copy /system/etc/wifi/softap/hostapd.conf /data/misc/wifi/hostapd.conf
+    chown wifi wifi /data/misc/wifi
+##//--]] LGE_UBIQUIX_MODIFIED_END : [jhyou79@mnbt.co.kr] - uses ti wl1271
+
+# Batt gauge error detection
+    chown radio system /sys/bus/platform/drivers/twl4030_bci/twl4030_bci/gauge_if
+    chmod 0664 /sys/bus/platform/drivers/twl4030_bci/twl4030_bci/gauge_if
+
+# Enabling sleep in idle path
+    write /sys/power/sleep_while_idle 1
+
+# Enabling Off mode
+    write /sys/power/enable_off_mode 1
+
+# Enabling voltage off while idle
+    write /sys/power/voltage_off_while_idle 1
+
+# Permissions for setting the DSP Frequency
+    chown media root /sys/power/dsp_freq
+
+#20110325 sungbum.chung@lge.com FRST
+#[nus]	chmod 0666 /dev/block/mmcblk0p08
+#20110325 sungbum.chung@lge.com FRST
+
+#20110407 sungbum.chung@lge.com add chmod
+#[nus]	chmod 0666 /dev/mtc_eta_log
+#20110407 sungbum.chung@lge.com add chmod
+
+#--[[ LGE_UBIQUIX_MODIFIED_START : scchoi@ubiquix.com [2011-08-08] - Added to remount the /system partition for read-only.
+    mount yaffs2 mtd@system /system ro remount
+#--]] LGE_UBIQUIX_MODIFIED_END : scchoi@ubiquix.com [2011-08-08] - Added to remount the /system partition for read-only.
+
+# To disable g_ether gadget
+setprop service.adb.tcp.port NULL
+
+# LGE_CHANGE_S bae.cheolhwan@lge.com, 2011-05-11. Root permission enable.
+# ADB permission
+    mkdir /data/adbpmms
+    chown shell shell /data/adbpmms
+    chmod 0777 /data/adbpmms
+# LGE_CHANGE_E bae.cheolhwan@lge.com, 2011-05-11. Root permission enable.
+
+    chown system system /sys/devices/platform/soc-audio/codec_reg
+    chown system system /sys/bus/i2c/drivers/wm9093/2-006e/wm9093_data
+# [2011.04.27] jung.chanmin@lge.com - modify soc-audio permission
+	chown system system /sys/devices/platform/soc-audio/IFX_CALL/codec_reg 
+	chown system system /sys/devices/platform/soc-audio/TWL4030_FM/codec_reg
+	chown system system /sys/devices/platform/soc-audio/TWL4030_I2S/codec_reg
+	chown system system /sys/devices/platform/soc-audio/TWL4030_PCM/codec_reg
+
+	chmod 771 /sys/devices/platform/soc-audio/IFX_CALL/codec_reg 
+	chmod 644 /sys/devices/platform/soc-audio/TWL4030_FM/codec_reg
+	chmod 644 /sys/devices/platform/soc-audio/TWL4030_I2S/codec_reg
+	chmod 644 /sys/devices/platform/soc-audio/TWL4030_PCM/codec_reg
+
+# 20110620, mschung@ubiquix.com, Never enable these lines at release. [UB_START]
+# 				Enabling these lines will make ril stop.
+#
+#For pass CTS Test.. this is temporary..
+#chmod 644 /sys/devices/platform/bd_address/bdaddr_if
+#chmod 644 /sys/devices/platform/i2c_omap.2/i2c-2/2-0020/fw
+#chmod 644 /sys/devices/platform/i2c_omap.1/i2c-1/1-004b/twl4030_bci/gauge_if
+#chown radio system /sys/devices/platform/bd_address/bdaddr_if
+# 20110620, mschung@ubiquix.com, Never enable these lines at release. [UB_END]
+
+#--[[ LGE_UBIQUIX_MODIFIED_START : scchoi@ubiquix.com [2011-08-20] - Changed the owner for baddr_if sys file.
+chown radio system /sys/devices/platform/bd_address/bdaddr_if
+#--]] LGE_UBIQUIX_MODIFIED_END : scchoi@ubiquix.com [2011-08-20] - Changed the owner for baddr_if sys file.
+
+#--[[ LGE_UBIQUIX_MODIFIED_START : scchoi@ubiquix.com [2011-08-16] - For pass CTS Test.. this is temporary..
+chmod 664 /sys/devices/omapdss/display0/name
+chmod 664 /sys/devices/omapdss/display0/enabled
+chmod 664 /sys/devices/omapdss/display0/timings
+chmod 664 /sys/devices/omapdss/display1/name
+chmod 664 /sys/devices/omapdss/display1/enabled
+chmod 664 /sys/devices/omapdss/display1/timings
+chmod 664 /sys/devices/platform/omapdss/overlay0/manager
+chmod 664 /sys/devices/platform/omapdss/overlay0/enabled
+chmod 664 /sys/devices/platform/omapdss/overlay0/zorder
+chmod 664 /sys/devices/platform/omapdss/overlay1/manager
+chmod 664 /sys/devices/platform/omapdss/overlay1/enabled
+chmod 664 /sys/devices/platform/omapdss/overlay1/zorder
+chmod 664 /sys/devices/platform/omapdss/overlay2/manager
+chmod 664 /sys/devices/platform/omapdss/overlay2/enabled
+chmod 664 /sys/devices/platform/omapdss/overlay2/zorder
+chmod 664 /sys/devices/platform/omapdss/manager0/display
+chmod 664 /sys/devices/platform/omapdss/manager0/trans_key_type
+chmod 664 /sys/devices/platform/omapdss/manager0/trans_key_value
+chmod 664 /sys/devices/platform/omapdss/manager0/trans_key_enabled
+chmod 664 /sys/devices/platform/omapdss/manager0/alpha_blending_enabled
+chmod 664 /sys/devices/platform/omapdss/manager1/display
+chmod 664 /sys/devices/platform/omapdss/manager1/trans_key_type
+chmod 664 /sys/devices/platform/omapdss/manager1/trans_key_value
+chmod 664 /sys/devices/platform/omapdss/manager1/trans_key_enabled
+chmod 664 /sys/devices/platform/omapdss/manager1/alpha_blending_enabled
+chmod 664 /sys/devices/platform/i2c_omap.2/i2c-2/2-0044/onoff
+chmod 664 /sys/devices/platform/i2c_omap.2/i2c-2/2-0044/delay
+chmod 664 /sys/devices/platform/i2c_omap.2/i2c-2/2-0044/wake
+#--]] LGE_UBIQUIX_MODIFIED_END : scchoi@ubiquix.com [2011-08-16] - For pass CTS Test.. this is temporary..
+
+##//--[[  Mwlan_GB_MODIFIED_START : [yung.im@lge.com]
+#insmod /system/lib/modules/mwlan_aarp.ko
+##//--]]  Mwlan_GB_MODIFIED_END : [yung.im@lge.com]
+
+
+# [2011.04.27] jung.chanmin@lge.com - modify soc-audio permission
+## Daemon processes to be run by init.
+##
+service ueventd /sbin/ueventd
+    critical
+
+service console /system/bin/sh
+    console
+    user shell
+    group log
+
+# SGX driver
+    chmod 0666 /dev/pvrsrvkm
+
+# ALS
+	chmod 0664 /sys/devices/platform/i2c_omap.2/i2c-2/2-0060/leds/lcd-backlight/als
+	chown system system /sys/devices/platform/i2c_omap.2/i2c-2/2-0060/leds/lcd-backlight/als
+
+# SGX driver service
+#service pvrsrv /system/bin/sh /system/bin/sgx/rc.pvr start
+#	user root
+#	oneshot
+
+# Initialize the SGX driver
+service pvrsrvinit /system/bin/pvrsrvinit
+        user root
+        oneshot
+
+# load DSP firmware
+service baseimage /system/bin/cexec.out /system/lib/dsp/baseimage.dof
+    user root
+    group audio
+    oneshot
+
+#service omx_pm /system/bin/OMXPolicyManager
+#    oneshot
+
+#service omx_rm /system/bin/OMXResourceManager
+#    oneshot
+
+#//--[[ LGE_UBIQUIX_MODIFIED_START : ymjun@mnbt.co.kr - TDMB
+# START LGE_BROADCAST [inb612@lge.com] 2009-12-01 LGE_DOMESTIC
+service broadcast /system/bin/libbroadcast_server
+    user broadcast
+    group system audio media sdcard_rw
+
+# TDMB Test Mode
+#service TdmbDiag /system/bin/TdmbDiag
+# END LGE_BROADCAST
+#//--]] LGE_UBIQUIX_MODIFIED_END : ymjun@mnbt.co.kr - TDMB
+
+# adbd is controlled by the persist.service.adb.enable system property
+service adbd /sbin/adbd
+    disabled
+
+# adbd on at boot in emulator
+on property:ro.kernel.qemu=1
+    start adbd
+
+on property:persist.service.adb.enable=1
+    start adbd
+
+on property:persist.service.adb.enable=0
+    stop adbd
+
+
+
+service servicemanager /system/bin/servicemanager
+    user system
+    critical
+    onrestart restart zygote
+    onrestart restart media
+
+service vold /system/bin/vold
+    socket vold stream 0660 root mount
+# LGE_UPDATE_S 20110201 jaejoong.kim@lge.com 
+#    ioprio be 2
+# LGE_UPDATE_E 20110201	jaejoong.kim@lge.com
+
+service netd /system/bin/netd
+    socket netd stream 0660 root system
+
+service debuggerd /system/bin/debuggerd
+
+service installd /system/bin/installd
+    socket installd stream 600 system system
+
+##//--[[ LGE_UBIQUIX_MODIFIED_START : [jhyou79@mnbt.co.kr] - for wifi, uses wl1271
+#20100504 WiFi taewonee.kim@lge.com - added nvs_map.bin param [START]
+service wlan_loader /system/bin/wlan_loader \
+    -f /system/etc/wifi/firmware.bin -i /system/etc/wifi/tiwlan.ini -e /data/misc/wifi/nvs_map.bin
+     disabled
+     oneshot
+#20100504 WiFi taewonee.kim@lge.com - added nvs_map.bin param [END]
+
+service wpa_supplicant /system/bin/wpa_supplicant -Dtiwlan0 -itiwlan0 -c/data/misc/wifi/wpa_supplicant.conf 
+    socket wpa_tiwlan0 dgram 660 wifi wifi
+    disabled
+    oneshot
+
+
+service ifcfg_ti /system/bin/ifconfig tiwlan0 up
+    disabled
+    oneshot
+
+# 20100621 WiFi taewonee.kim@lge.com - ARP option removed
+
+#--[[ LGE_UBIQUIX_MODIFIED_START : jhyou79@mnbt.co.kr [2011.08.25] - Auto IP
+# service dhcpcd /system/bin/dhcpcd -BKLA -d tiwlan0
+service dhcpcd /system/bin/dhcpcd -BKA -d tiwlan0
+    disabled 
+    oneshot
+#--]] LGE_UBIQUIX_MODIFIED_END : jhyou79@mnbt.co.kr [2011.08.25] - Auto IP
+service tiwlan_plts /system/bin/tiwlan_plts
+    disabled 
+    oneshot
+
+#20100504 WiFi taewonee.kim@lge.com - added tiwlan_nvs service [START]
+#--[[ LGE_UBIQUIX_MODIFIED_START : jhyou79@mnbt.co.kr [2011.06.29] - for create nvs_map.bin
+service tiwlan_nvs /system/bin/tiwlan_plts -n
+    disabled 
+#    oneshot
+#--]] LGE_UBIQUIX_MODIFIED_END : jhyou79@mnbt.co.kr [2011.06.29] - for create nvs_map.bin
+#20100504 WiFi taewonee.kim@lge.com - added tiwlan_nvs service [END]
+
+#20100812 Wi-Fi taewonee.kim@lge.com - For SoftAP [START]
+service wlan_ap_loader /system/bin/tiap_loader \
+	-i /system/etc/wifi/softap/tiwlan_ap.ini -f /system/etc/wifi/softap/firmware_ap.bin -e /data/misc/wifi/nvs_map.bin
+    disabled
+    oneshot
+
+service hostapd /system/bin/hostap -dd /data/misc/wifi/hostapd.conf
+    disabled
+    oneshot
+
+service dhcpserver_run /system/bin/udhcpd /system/etc/wifi/softap/udhcpdWlan.conf
+    disabled
+    oneshot
+
+service tiwlan_if_down /system/bin/ifconfig tiwlan0 down
+    disabled
+    oneshot
+
+service ifcfg_tiap0 /system/bin/ifconfig tiap0 192.168.43.1 netmask 255.255.255.0 up
+    disabled
+    oneshot
+#20100812 Wi-Fi taewonee.kim@lge.com - For SoftAP [END]
+##//--]] LGE_UBIQUIX_MODIFIED_END : [jhyou79@mnbt.co.kr] - for wifi, uses wl1271
+
+#LGE USB
+service ifset_usb0 /system/bin/ifconfig usb0 192.168.1.100 up 
+    oneshot
+
+service ril-daemon /system/bin/rild -l /system/lib/lge-ril.so -- -d /dev/ttyspi0
+    socket rild stream 660 root radio
+    socket rild-debug stream 660 radio system
+    user root
+    group radio cache inet misc audio sdcard_rw system
+
+# ubiquix change_s, hrgo@ubiquix.com, 2011-06-23, Unblock for PCSync 
+# LGE_CHANGE_S, wonjong.song@lge.com, 2011-03-02, Add Web Download Daemon
+service pcsync /system/bin/pcsync
+	user root
+	group input
+# LGE_CHANGE_E, wonjong.song@lge.com, 2011-03-02, Add Web Download Daemon
+# ubiquix change_e, hrgo@ubiquix.com, 2011-06-23, Unblock for PCSync
+	
+# LGE_CHANGE_S, ryu.seeyeol@lge.com, 2011-02-01, Sensors Porting (MPL V3.3 Release)
+service akmd2 /system/bin/akmd2
+	user compass
+	group system
+
+#service motion /system/bin/motion
+#	user compass
+#	group system
+# LGE_CHANGE_E, ryu.seeyeol@lge.com, 2011-02-01, Sensors Porting (MPL V3.3 Release)
+# LGE_UBIQUIX_MODIFIED_START : hskim@ubiquix.com - add justin_froyo               
+# LGE_CHANGE_S, [DATA_LAB1_LGT_FROYO_016][LGE_DATA][bongsook.jeong@lge.com], 2010-01-05
+
+service rawip_vsnet1 /etc/init_lgt.vsnet 1
+   user root
+   group radio cache inet misc
+   disabled
+   oneshot
+
+service rawip_vsnet2 /etc/init_lgt.vsnet 2
+   user root
+   group radio cache inet misc
+   disabled
+   oneshot
+
+service rawip_vsnet3 /etc/init_lgt.vsnet 3
+   user root
+   group radio cache inet misc
+   disabled
+   oneshot
+
+service rawip_vsnet4 /etc/init_lgt.vsnet 4
+   user root
+   group radio cache inet misc
+   disabled
+   oneshot
+# LGE_CHANGE_E, [DATA_LAB1_LGT_FROYO_016][LGE_DATA][bongsook.jeong@lge.com], 2010-01-05
+# LGE_UBIQUIX_MODIFIED_END : hskim@ubiquix.com - add justin_froyo  
+
+
+# LGE_MPDP_FEATURE START
+service pppd_gprs1 /etc/init.gprs-pppd 1
+   user root
+   group radio cache inet misc
+   disabled
+   oneshot
+
+service pppd_gprs2 /etc/init.gprs-pppd 2
+   user root
+   group radio cache inet misc
+   disabled
+   oneshot
+
+service pppd_gprs3 /etc/init.gprs-pppd 3
+   user root
+   group radio cache inet misc
+   disabled
+   oneshot
+
+service pppd_gprs4 /etc/init.gprs-pppd 4
+   user root
+   group radio cache inet misc
+   disabled
+   oneshot
+
+# LGE_SIGNALING START
+service signaling_c /system/bin/lge_signaling_d -d /dev/pts18
+    socket lge_signaling stream 660 root system
+    user radio
+    group radio cache inet misc
+# LGE_SIGNALING END
+
+
+# LGE_CHANGE_S, bae.cheolhwan@lge.com, 2011-03-19, Delete a LGDRM partition.
+##ifdef (ANDY_LGDRM)                                                        
+### ANDY_PORTING LGDRM [lg-drm@lge.com 100401]                              
+## Must executed before system_server                                       
+#service lgdrm /system/bin/lgdrmserver                                      
+#    user lgdrm                                                             
+#    group lgdrm_acc system sdcard_rw                                       
+### ANDY_END                                                                
+##endif                                                                     
+# LGE_CHANGE_E, bae.cheolhwan@lge.com, 2011-03-19, Delete a LGDRM partition.
+
+service zygote /system/bin/app_process -Xzygote /system/bin --zygote --start-system-server
+    socket zygote stream 666
+#    onrestart write /sys/android_power/request_state wake
+    onrestart write /sys/power/state on
+    onrestart restart media
+
+service media /system/bin/mediaserver
+#[LGE_start] hj.eum : Must change 'user media', when release building.
+    user media
+#   user root
+#[LGE_end] hj.eum : Must change 'user media', when release building.
+	group system audio camera graphics inet net_bt net_bt_admin net_raw sdcard_rw divxdrm
+	ioprio rt 4
+#--[[ LGE_UBIQUIX_MODIFIED_START : ymjun@mnbt.co.kr [2011.10.14] - TDMB
+# TDMB SERVER Update 111014 by suyong.han@lge.com 
+	onrestart restart broadcast
+#--]] LGE_UBIQUIX_MODIFIED_END : ymjun@mnbt.co.kr [2011.10.14] - TDMB
+
+# Samsung for driver
+# MMS: set fw3a_core to run all the time
+#
+# You can see fw3a_core options by executing this command from the PC:
+#   adb shell "/system/bin/fw3a_core --dbgstd=out --help"
+# 
+# Here are the commands, which should be executed from the PC if you 
+# wanto to: 
+#
+#   * stop all output:
+#     adb shell "echo --dbgstd=none   | nc -w 1 -u localhost 6660"
+#
+#   * redirect dbg info to ADB logcat system:
+#     adb shell "echo --dbgstd=logcat | nc -w 1 -u localhost 6660"
+#
+#   * redirect dbg info to a file:
+#     adb shell "echo --dbgstd=/data/log/fw3A/fw3a_core.dbg.log | nc -w 1 -u localhost 6660"
+#
+service fw3a /system/bin/fw3a_core --dbgport=6660 --dbgremote --dbgpath=/data/log/fw3A
+    user camera
+    group camera
+#    user root
+#    group root
+
+service bootlogo /sbin/bootlogo
+    user root
+    group root
+    disabled
+#    onrestart write /sys/class/leds/lcd-backlight/brightness 100
+    oneshot
+
+# LGE_CHANGE_S, bae.cheolhwan@lge.com, 2011-05-10. Modify a hidden reset fuction.
+service hresetfinished /system/bin/sh /system/bin/hiddenresetcompleted.sh
+    user root
+    disabled
+    oneshot
+# LGE_CHANGE_E, bae.cheolhwan@lge.com, 2011-05-10. Modify a hidden reset fuction.
+
+service omap-post-boot /system/bin/sh /init.omap.post_boot.sh
+    user root
+    disabled
+    oneshot
+
+on property:dev.bootcomplete=1
+    start omap-post-boot
+
+service bootanim /system/bin/bootanimation
+    user graphics
+    group graphics
+    disabled
+    oneshot
+
+service dbus /system/bin/dbus-daemon --system --nofork
+    socket dbus stream 666 bluetooth bluetooth
+    user bluetooth
+    group bluetooth net_bt_admin
+
+service make_model_file /system/bin/sh /etc/make_model_file.sh
+    enabled
+    oneshot
+
+# LGE_CHANGE_S, ryu.seeyeol@lge.com, 2011-03-25, Move from P970 for Log Service
+#  Log Service [start]
+# main log
+# [[ LGE_UBIQUIX_MODIFIED_START : shyun@ubiquix.com [2011.08.16] - Logcat parameter is modified.
+#service logcat-main /system/bin/logcat -v time -b main -f /data/logger/main.log -n 4 -r 4096
+service logcat-main /system/bin/logcat -v time -b main -f /data/logger/main.log -n 1 -r 512
+# ]] LGE_UBIQUIX_MODIFIED_END : shyun@ubiquix.com [2011.08.16]- Logcat parameter is modified.
+	disabled
+	oneshot
+
+on property:persist.service.main.enable=1
+	start logcat-main
+
+on property:persist.service.main.enable=0
+	stop logcat-main
+
+# system log
+# [[ LGE_UBIQUIX_MODIFIED_START : shyun@ubiquix.com [2011.08.16] - Logcat parameter is modified.
+#service logcat-system /system/bin/logcat -v time -b system -f /data/logger/system.log -n 4 -r 4096
+service logcat-system /system/bin/logcat -v time -b system -f /data/logger/system.log -n 1 -r 512
+# ]] LGE_UBIQUIX_MODIFIED_END : shyun@ubiquix.com [2011.08.16]- Logcat parameter is modified.
+	disabled
+	oneshot
+
+on property:persist.service.system.enable=1
+	start logcat-system
+
+on property:persist.service.system.enable=0
+	stop logcat-system
+
+# radio log	
+# [[ LGE_UBIQUIX_MODIFIED_START : shyun@ubiquix.com [2011.08.16] - Logcat parameter is modified.
+#service logcat-radio /system/bin/logcat -v time -b radio -f /data/logger/radio.log -n 4 -r 4096
+service logcat-radio /system/bin/logcat -v time -b radio -f /data/logger/radio.log -n 1 -r 512
+# ]] LGE_UBIQUIX_MODIFIED_END : shyun@ubiquix.com [2011.08.16]- Logcat parameter is modified.
+	disabled
+	oneshot
+
+on property:persist.service.radio.enable=1
+	start logcat-radio
+
+on property:persist.service.radio.enable=0
+	stop logcat-radio
+
+# event log
+# [[ LGE_UBIQUIX_MODIFIED_START : shyun@ubiquix.com [2011.08.16] - Logcat parameter is modified.
+#service logcat-events /system/bin/logcat -v time -b events -f /data/logger/events.log -n 4 -r 4096
+service logcat-events /system/bin/logcat -v time -b events -f /data/logger/events.log -n 1 -r 512
+# ]] LGE_UBIQUIX_MODIFIED_END : shyun@ubiquix.com [2011.08.16]- Logcat parameter is modified.
+	disabled
+	oneshot
+
+on property:persist.service.events.enable=1
+	start logcat-events
+
+on property:persist.service.events.enable=0
+	stop logcat-events
+
+# kernel log	
+service log-kernel /system/bin/sh /etc/save_kernel_log.sh
+	disabled
+	oneshot
+
+on property:persist.service.kernel.enable=1
+	start log-kernel
+
+on property:persist.service.kernel.enable=0
+	stop log-kernel
+#  Log Service [END]	
+# LGE_CHANGE_E, ryu.seeyeol@lge.com, 2011-03-25, Move from P970 for Log Service
+# Make sure we startup btld before bluetoothd
+# Set target address to emulator host loopback IF
+# Limit baudrate to 460800 to ensure reliable uart operation
+#service btld /system/bin/logwrapper /system/bin/btld -pf /system/bin/BCM43291A0_003.001.013.0066.xxxx_B-Project.hcd -hb 3000000 -hp /dev/ttyO1 -lpm 1
+#[nus]service btld /system/bin/logwrapper /system/bin/btld -pf /system/bin/BCM43291A0_003.001.013.0111.0116_B-Project.hcd -hb 3000000 -hp /dev/ttyO1 -lpm 1
+#[nus]    user root			
+#[nus]    group bluetooth net_bt_admin			
+#[nus]    disabled			
+#[nus]    oneshot			
+
+#--[[ LGE_UBIQUIX_MODIFIED_START : nullcha@mnbt.co.kr - delete bluetoothd demon for TI bluetooth
+
+#service bluetoothd /system/bin/bluetoothd -n			
+#    socket bluetooth stream 660 bluetooth bluetooth			
+#    socket dbus_bluetooth stream 660 bluetooth bluetooth			
+# init.rc does not yet support applying capabilities, so run as root and			
+# let bluetoothd drop uid to bluetooth with the right linux capabilities			
+#    group bluetooth net_bt_admin misc			
+#    disabled			
+
+#--]] LGE_UBIQUIX_MODIFIED_START : nullcha@mnbt.co.kr - delete bluetoothd demon for TI bluetooth
+
+#--[[ LGE_UBIQUIX_MODIFIED_START : nullcha@mnbt.co.kr - add btips demon for TI bluetooth
+
+#btips - 2.22
+service btips /system/bin/btipsd  --android_log
+    user root
+    group bluetooth net_bt_admin lgdrm_acc
+    disabled # the MCP monitor service is responsible for bringing up the daemon
+    oneshot
+
+#--]] LGE_UBIQUIX_MODIFIED_START : nullcha@mnbt.co.kr - add btips demon for TI bluetooth
+
+service racoon /system/bin/racoon
+    socket racoon stream 600 system system
+    # racoon will setuid to vpn after getting necessary resources.
+    group net_admin
+    disabled
+    oneshot
+
+service mtpd /system/bin/mtpd
+    socket mtpd stream 600 system system
+    user vpn
+    group vpn net_admin net_raw
+    disabled
+    oneshot
+
+service keystore /system/bin/keystore /data/misc/keystore
+    user keystore
+    group keystore
+    socket keystore stream 666
+
+service dumpstate /system/bin/dumpstate -s
+    socket dumpstate stream 0660 shell log
+    disabled
+    oneshot
+
+#ANDY_PORTING OSP [woongchang.kim@lge.com 101027]
+service lgospd-hid /system/bin/lgospd-hid
+    user root
+    group system
+    oneshot
+
+service lgospd /system/bin/lgospd
+    user system
+    group system graphics diag radio
+#ANDY_END
+
+# LGE_CHANGE_Aromasoft_Start [choung.heunhee@lge.com] 2010-05-16
+
+service screencaptured /system/bin/screencaptured
+    socket screencaptured stream 666 system system
+    user fbscreen
+#    user root
+    group system net_admin net_raw sdcard_rw graphics
+# LGE_CHANGE_Aromasoft_End [choung.heunhee@lge.com] 2010-05-16
+
+#[nus]service glgps /system/bin/glgps -c /system/etc/gps_brcm_conf.xml
+#[nus]    user root
+#[nus]    group system
+#    oneshot
+
+service immvibed /system/bin/immvibed
+	user shell
+	group system
+	oneshot
+
+#service immvbsd /system/bin/immvbsd -adb
+#	oneshot
+
+
+#
+# The pictbridge service initially disabled. It is started or stopped
+# when support for the pictbridge function is added or removed by the
+# kernel's personality gadget.
+#
+
+# LGE_CHANGE_S 20110201 jaejoong.kim@lge.com - block useless usb functions
+# service pictbridge /system/bin/pictbridged /devices/platform/musb_hdrc/gadget/pictbridge
+#    disabled
+# on device-added-/devices/platform/musb_hdrc/gadget/pictbridge
+#     start pictbridge
+# on device-removed-/devices/platform/musb_hdrc/gadget/pictbridge
+#     stop pictbridge
+
+
+#
+# The MTP service could be started and stopped on demand.
+#
+
+# service mtp /system/bin/lg_mtp_service
+#     disabled
+# on device-added-/devices/platform/musb_hdrc/gadget/mtp
+#     start mtp
+# on device-removed-/devices/platform/musb_hdrc/gadget/mtp
+#     stop mtp
+
+##//--[[  Mwlan_GB_MODIFIED_START : [yung.im@lge.com]
+#insmod /system/lib/modules/mwlan_aarp.ko
+##//--[[ LGE_UBIQUIX_MODIFIED_START : [jhyou79@mnbt.co.kr] 
+# 20100919 Wi-Fi taewonee.kim - for M-WLAN [START]
+#service vpncored /data/data/com.lguplus.common.wificm/files/vpncored
+#	user root
+#	group root
+#	disabled
+#	oneshot
+# 20100919 Wi-Fi taewonee.kim - for M-WLAN [END]
+##//--]] LGE_UBIQUIX_MODIFIED_END : [jhyou79@mnbt.co.kr]
+##//--]]  Mwlan_GB_MODIFIED_END : [yung.im@lge.com]
+
+#
+# The heaven muic can switch the usb connector to the communications
+# processor when a (dummy) communications functions appears.  It's not
+# yet clear when and how the device switches back to the application
+# processor.
+#
+
+# LGE_UPDATE_S 20110318 [jaejoong.kim@lge.com] block non-use usb code
+# on device-added-/devices/platform/musb_hdrc/gadget/communications
+#    write /proc/driver/hmuic "9"
+ 
+# on device-removed-/devices/platform/musb_hdrc/gadget/communications
+#     write /proc/driver/hmuic "8"
+# LGE_UPDATE_E 20110318 [jaejoong.kim@lge.com] block non-use usb code
+
+#
+# Select the file system image for USB cdrom
+#
+# LGE_CHANGE_E 20110201 jaejoong.kim@lge.com - block useless usb functions
+
+# service isomounter /system/bin/isomounter
+#     oneshot
+#    disabled
+
+# on device-added-/bus/platform/drivers/usb_mass_storage
+#     start isomounter
+
+#
+# Restart the adb service if a ADB enabled USB personality is
+# selected.  This will tear down ADB WiFi connections.
+#
+# We don't check persist.service.adb.enable here.  If the user selected
+# an ADB personality he clearly wants ADB support.
+#
+
+# LGE_UPDATE_S 20110126 jaejoong.kim for block usb personality
+on device-added-/devices/virtual/misc/android_adb
+    stop adbd
+    start adbd
+# LGE_UPDATE_E 20110126 jaejoong.kim for block usb personality
+
+#
+# If we're leaving USB ADB mode we restart the WiFi support.
+#
+# We don't check persist.service.adb.enable here.  If the user just used
+# an ADB personality he must have allowed debugging earlier.
+#
+
+# LGE_UPDATE_S 20110126 jaejoong.kim for block usb personality
+on device-removed-/devices/virtual/misc/android_adb
+    stop adbd
+    start adbd
+# LGE_UPDATE_E 20110126 jaejoong.kim for block usb personality
+
+#
+# The default usb gadget personality cannot be set earlier, or init
+# will not be able to react to uevents in a consistent way.  If the
+# UsbModeService stored a user's choice in the data partition it will
+# be changed again later.
+#
+# Currently supported values are soft disconnect:0; pc suite cdrom:1;
+# pc internet cdrom:2; media sync:11; media sync with adb:3074; pc
+# internet:17232; normal mode:24974.
+#
+
+# LGE_UPDATE_S 20110209 jaejoong.kim@lge.com to block usb personality
+# service init_usb /system/bin/sh /system/bin/set_gadget_personality 24974
+#     oneshot
+# LGE_UPDATE_E 20110209 jaejoong.kim@lge.com to block usb personality
+
+# bugreport is triggered by the KEY_VOLUME_DOWN and KEY_VOLUME_UP keycodes
+service bugreport /system/bin/logwrapper /system/bin/dumpstate -d -v -o /sdcard/bugreports/bugreport
+	disabled
+	oneshot
+	keycodes 114 115
+
+## Mobile Hot-spot by kyungsu.mok
+service dhcpd /system/xbin/udhcpd -f
+	disabled
+	oneshot
+

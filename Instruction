@@ -1,0 +1,25 @@
+Project Meteor, Custom Kernel for LGE Optimus Mach (LG-LU3000)
+Team Oneiric Workshop; e694389
+
+-
+
+Compile:
+** Need [Sourcery G++ Lite 2010q1-202 toolchain for ARM EABI] to compile.
+
+touch rootdir
+make ARCH=arm CROSS_COMPILE=arm-none-linux-gnueabi- hub_rev_b_defconfig
+make ARCH=arm CROSS_COMPILE=arm-none-linux-gnueabi- uImage
+
+** Compiled kernel image will be located in arch/arm/boot/uImage.
+
+-
+
+Flash to device:
+** Need flash_erase and nandwrite, make sure that they are placed in /system/bin
+** Need Superuser Permission
+
+flash_erase /dev/mtd/mtd3 0 0
+nandwrite -p /dev/mtd/mtd3 [location_of_uImage]
+
+** Replace [location_of_uImage] with the address of uImage.
+** Reboot device to apply changes.

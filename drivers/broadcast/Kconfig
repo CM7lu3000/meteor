@@ -1,0 +1,43 @@
+#
+# Broadcast Device Driver Support
+#
+
+menu "BROADCAST_DEVICE"
+
+menu "Device Select"
+config LGE_BROADCAST
+	bool "LGE broacast device support"
+	default y
+	help
+	  Select this if you want to use broadcast service
+config LGE_BROADCAST_FC8050
+	bool "fc8050 device support"
+#//--[[ LGE_UBIQUIX_MODIFIED_START : ymjun@mnbt.co.kr [2011.06.21] - TDMB (Add PRODUCT feature) 
+	depends on LGE_BROADCAST && (PRODUCT_LGE_BLACK || PRODUCT_LGE_JUSTIN)
+#//--]] LGE_UBIQUIX_MODIFIED_END : ymjun@mnbt.co.kr [2011.06.21] - TDMB (Add PRODUCT feature)
+	default y
+config LGE_BROADCAST_LG2102
+	bool "lg2102 device support"
+#//--[[ LGE_UBIQUIX_MODIFIED_START : ymjun@mnbt.co.kr [2011.06.21] - TDMB (Add PRODUCT feature) 
+	depends on LGE_BROADCAST && PRODUCT_LGE_HUB
+#//--]] LGE_UBIQUIX_MODIFIED_END : ymjun@mnbt.co.kr [2011.06.21] - TDMB (Add PRODUCT feature)
+	default y
+endmenu
+
+menu "Device Interface Select"
+config LGE_BROADCAST_TSIF
+	bool "TSIF support"
+	depends on LGE_BROADCAST
+	default n
+config LGE_BROADCAST_SPI
+	bool "SPI support"
+	depends on LGE_BROADCAST
+	default y
+config LGE_BROADCAST_EBI
+	bool "EBI support"
+	depends on LGE_BROADCAST
+	default n
+comment "Device is not selected"
+	depends on !LGE_BROADCAST
+endmenu
+endmenu
