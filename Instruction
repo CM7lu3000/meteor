@@ -15,7 +15,7 @@ make ARCH=arm CROSS_COMPILE=arm-none-linux-gnueabi- uImage
 -
 
 Flash to device:
-** Need flash_erase and nandwrite, make sure that they are placed in /system/bin
+** Need flash_erase and nandwrite, make sure that they are placed in /system/xbin
 ** Need Superuser Permission
 
 flash_erase /dev/mtd/mtd3 0 0
