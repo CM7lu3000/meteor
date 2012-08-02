@@ -273,11 +273,14 @@ static int omap_cpu_init(struct cpufreq_policy *policy)
 
 	/* FIXME: what's the actual transition time? */
 /* LGE_CHANGE_S <sunggyun.yu@lge.com> 2010-12-01 For fast ondemand freq. change */
+/*
 #if 1
 	policy->cpuinfo.transition_latency = 15 * 1000;
 #else
 	policy->cpuinfo.transition_latency = 300 * 1000;
 #endif
+*/
+	policy->cpuinfo.transition_latency = 20 * 1000;
 /* LGE_CHANGE_E <sunggyun.yu@lge.com> 2010-12-01 For fast ondemand freq. change */
 #ifdef CONFIG_SMP
 	/*
