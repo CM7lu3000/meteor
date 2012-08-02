@@ -43,7 +43,7 @@
 /* LGE_UPDATE_E, jaewoo56.lee@lge.com, Bluetooth for Broadcom */
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
-#include <asm/mach/map.h>
+#include <asm/mach/map.h> /* VSIM for 1.8V_WLAN */
 
 #include <plat/common.h>
 #include <plat/usb.h>
@@ -587,8 +587,8 @@ static struct regulator_init_data hub_vmmc2 = {
 /* VSIM for 1.8V_WLAN */
 static struct regulator_init_data hub_vsim = {
 	.constraints = {
-		.min_uV			= 1800000,
-		.max_uV			= 3000000,
+		.min_uV			= 1700000,
+		.max_uV			= 2700000,
 		.valid_modes_mask	= REGULATOR_MODE_NORMAL
 					| REGULATOR_MODE_STANDBY,
 		.valid_ops_mask		= REGULATOR_CHANGE_VOLTAGE
